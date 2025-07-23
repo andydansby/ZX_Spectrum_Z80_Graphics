@@ -4,8 +4,8 @@ endless:
 	jp endless
 
 	                           ;  variables
-_line_x1:	defb 255           ;  line start point X
-_line_y1:	defb 005           ;  line start point Y
+_line_x1:	defb 000           ;  line start point X
+_line_y1:	defb 000           ;  line start point Y
 _line_x2:	defb 000           ;  line end point X
 _line_y2:	defb 000           ;  line end point Y
 
@@ -14,12 +14,13 @@ stepY:	defb 0                     ;  direction of travel vertically
 steps:	defb 0                     ;  the total number of pixels to be plotted
 iterations:	defb 0             ;  loop counter
 
+	                           ;  distance between points in Y axis
 deltaX:	defw 0                     ;  distance between points in X axis
 deltaY:	defw 0                     ;  distance between points in Y axis
 
 fraction:	defw 0             ;  deciding point on which way the next pixel will travel
 
-;;gfx variables
+	                           ;  ;gfx variables
 _gfx_xy:	defw 0
 
 	                           ;  variables
@@ -28,6 +29,10 @@ _gfx_xy:	defw 0
 _hellaPlot:
 	ret
 
+
+	                           ;  setup portion takes 422 to 527 T states
+	                           ;  Loop decision takes 44 to 54 T states
+	                           ;  Loop takes 455 to 539 T states per pixel
 
 
 
@@ -59,7 +64,7 @@ deltaXABS:
 
 DXABS_finished:
 	ld (deltax),HL             ;  ABS answer
-
+	                           ;  68 to 102 T states
 
 
 	                           ;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -95,6 +100,9 @@ deltaYABS:
 DYABS_finished:
 	ld (deltaY),HL             ;  ABS answer
 	                           ;  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	                           ;  68 to 102 T states
+
+
 
 step_X:	                           ;  stepx = (x1 < x2) ? 1 : -1;
 	xor A                      ;  clear flags
@@ -119,6 +127,8 @@ positiveDX:	                   ;  point 2 is larger, going forwards
 negativeDX:	                   ;  point 1 is larger, going backwards
 	ld A,-1                    ;  set A to -1 or $FF
 	ld (stepX),A               ;  load into variable
+	                           ;  68 to 78 T states
+
 	                           ;  ;;;;;;;;;;;;;;;;;;;;;;;
 
 step_Y:	                           ;  stepy = (y1 < y2) ? 1 : -1;
@@ -145,6 +155,8 @@ negativeDY:
 	ld A,-1                    ;  set A to -1 or $FF
 	ld (stepY),A               ;  load into variable
 	                           ;  ;;;;;;;;;;;;;;;;;;;;;;;
+	                           ;  68 to 78 T states
+
 
 steps_calculation:	           ;  steps = max(deltaX, deltaY);
 	xor A                      ;  clear flags
@@ -153,13 +165,18 @@ steps_calculation:	           ;  steps = max(deltaX, deltaY);
 	ld A,(deltaX)              ;  load in length of Y axis
 	cp H                       ;  compare against deltaX
 	jr c,delta_Y_max           ;  if carry flag is set, then delta_Y is larger
+	                           ;  43 to 48 T states
+
 
 delta_X_max:
 	ld A,(deltaX)              ;  now that deltaX is the maximum, load it into A
 	jr max_steps
+	                           ;  25 T states
 
 delta_Y_max:
 	ld A,(deltaY)              ;  now that deltaY is the maximum, load it into A
+	                           ;  13 T states
+
 
 max_steps:
 	ld (steps),A               ;  now we know the maximum pixels that will be used
@@ -171,10 +188,15 @@ max_steps:
 	ld (_gfx_xy),DE
 	call _hellaPlot
 
+
 	                           ;  ;;;;;;;;;;;;;;;;;;;;;;;;
 	                           ;  lets start our loop
 	                           ;  ;;;;;;;;;;;;;;;;;;;;;;;;
 	jp DXDY_loop
+	                           ;  94 T states
+
+
+	                           ;  setup = 422 to 527 T states
 
 end_bresenham:	                   ;  <----------------- end routine
 	ret
@@ -197,7 +219,7 @@ delta_X_larger:	                   ;  if (deltaX > deltaY)
 	                           ;  else if (deltaY >= deltaX)
 delta_Y_larger:
 	jp deltaY_case
-
+	                           ;  44 to 54 T states
 	                           ;  NOW we need to start treating
 	                           ;  deltaX and deltaY as 16 bit variables
 	                           ;  ;;;;;;;;;;;;;;;;;;;;;;
@@ -216,6 +238,7 @@ deltaX_case:	                   ;  if (deltaX > deltaY)
 	or A                       ;  Clear carry flag before subtraction
 	sbc HL,DE                  ;  HL = deltaY - (deltaX / 2)
 	ld (fraction),HL           ;  write answer
+	                           ;  87 T states
 
 deltaX_loop:	                   ;  for (iterations = 0; iterations <= steps; iterations++)
 	                           ;  incrementor
@@ -226,6 +249,8 @@ deltaX_loop:	                   ;  for (iterations = 0; iterations <= steps; ite
 	cp H                       ;  compare steps with iterations
 	jr z,end_DX                ;  if no difference, Zero flag is set and we can break out
 	                           ;  otherwise continue the loop
+	                           ;  43 to 48 T states
+
 
 	                           ;  now plot our point
 	ld A,(_line_x1)
@@ -234,6 +259,7 @@ deltaX_loop:	                   ;  for (iterations = 0; iterations <= steps; ite
 	ld E,A
 	ld (_gfx_xy),DE
 	call _hellaPlot
+	                           ;  71 T states
 
 	                           ;  everything needs to be adjusted here to assume fraction
 	                           ;  is 16 bit, may have to use DE as well as HL
@@ -247,6 +273,7 @@ deltaX_loop:	                   ;  for (iterations = 0; iterations <= steps; ite
 	jp z,subtract_x_fraction   ;  HL is = 0 Zero Flag is On
 	jp p,add_x_fraction        ;  HL is > 0 Sign flag is Off
 	jp m,subtract_x_fraction   ;  HL is < 0 Sign flag is On
+	                           ;  59 to 79 T states
 
 subtract_x_fraction:	           ;  fraction >= 0
 
@@ -262,6 +289,7 @@ subtract_x_fraction:	           ;  fraction >= 0
 	ld A,(stepY)               ;  load stepY
 	add A,H                    ;  add the two
 	ld (_line_y1),A            ;  write the answer
+	                           ;  114 T states
 
 	                           ;  fraction < 0
 add_x_fraction:
@@ -283,8 +311,8 @@ add_x_fraction:
 
 DX_fraction:
 	ld (fraction),HL           ;  write the Answer
-	                           ;  115 / 120 T
-	                           ;  26 bytes
+	                           ;  115 to 120 T states
+
 
 	                           ;  finally, we increment our loop by 1
 	ld A,(steps)
@@ -292,10 +320,12 @@ DX_fraction:
 	ld (steps),A
 
 	jp deltaX_loop             ;  jump back to start of loop
+	                           ;  40 T states
+
 
 end_DX:
 	jp end_bresenham
-
+	                           ;  10 T states
 	                           ;  ;;;;;;;;;;;;;;;;;;;;;;
 
 deltaY_case:	                   ;  if (deltaY > deltaX)
